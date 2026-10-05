@@ -1,0 +1,949 @@
+global:
+  min_token_count: 25
+  min_encounter_tokens: 12
+  # max_encounter_minutes: 28765  # Uncomment to drop encounters longer than this (minutes)
+  encounter_key_column: EncounterKey
+  disposition_filter: [Discharge, Admit]
+  numerical_strategy:
+    mode: combined_exact  # combined_exact | combined_percentile | separate_exact | separate_percentile
+    percentile_rounding: 5
+    zscore_step: 0.2  # Step size for z-score discretization (clips to [-3,3])
+  split:
+    train: "year <= 2023"
+    test: "year >= 2024"
+  output_dir: "output"
+
+sources:
+  vitals:
+    file: vitals.csv
+    mode: keyed
+    key_column: FlowsheetRowDisplayName
+    value_column: NumericValue
+    timestamp_column: TakenInstant
+    defaults:
+      type: numeric
+      rounding: int
+      prefix: Vital
+    variables:
+      BP: { type: custom, process: bp }
+      Glasgow Coma Scale Score: { rounding: int }
+      MAP (mmHg): { rounding: 5 }
+      O2 Device: { type: custom, process: o2_device, value_column: Value }
+      O2 Flow Rate (l/min): {  }
+      Pulse: { rounding: 5 }
+      "Pulse - Palpated/Pleth": { rounding: 5, rename: Pulse }
+      Resp: { rounding: 2 }
+      SpO2: { rounding: int }
+      Temp: { rounding: int }
+      Weight: { type: custom, process: weight_oz_to_kg }
+
+  labs:
+    file: labs.csv
+    mode: keyed
+    key_column: ComponentName
+    value_column: Value
+    timestamp_column: ResultInstant
+    defaults:
+      type: numeric
+      rounding: exact  # Options: exact, int, intN, zscore
+      # rounding: zscore  # Z-score mode: requires lab_zscore_stats.json in data-dir
+      prefix: Lab
+      numeric: false  # Set to true with rounding: zscore to use z-score tokens
+      min_abnormal_fraction: 0.05  # In non-percentile modes, only include labs with >5% abnormal
+      numeric_fallback:
+        condition: { column: Abnormal, equals: 1 }
+        suffix: "_Abnormal"
+    variables:
+      "% Basophils": {}
+      "% Eosinophils": {}
+      "% Immature Granulocytes": {}
+      "% Lymphocytes": {}
+      "% Monocytes": {}
+      "% Seg Neutrophils": {}
+      AST: {}
+      Abs Basophils: {}
+      Abs Eosinophils: {}
+      Abs Imm Granulocytes: {}
+      Abs Lymphocytes: {}
+      Abs Monocytes: {}
+      Abs NRBC: {}
+      Abs Neutrophils: {}
+      Alanine transaminase: {}
+      "Albumin, Serum / Plasma": {}
+      Alkaline Phosphatase: {}
+      Anion Gap: {}
+      "Ascorbic Acid, UA": {}
+      Base excess: {}
+      Bilirubin Urine: {}
+      "Bilirubin, Total": {}
+      "Bilirubin, UA": {}
+      "Blood, UA": {}
+      "Calcium, total, Serum / Plasma": {}
+      "Carbon Dioxide, Total": {}
+      "Chloride, Serum / Plasma": {}
+      "Glucose, UA": {}
+      Hematocrit: {}
+      Hemoglobin: {}
+      "Ketones, UA": {}
+      "Leukocytes, UA": {}
+      MCH: {}
+      MCHC: {}
+      MCV: {}
+      MPV: {}
+      "Magnesium, Serum / Plasma": {}
+      "Nitrite, UA": {}
+      "Phosphorus, serum/plasma": {}
+      Platelet Count: {}
+      "Potassium, Serum / Plasma": {}
+      "Protein, Total, Serum / Plasma": {}
+      "Protein, UA": {}
+      RBC Count: {}
+      "RBCs, urine": {}
+      "RDW-CV": {}
+      "Sodium, Serum / Plasma": {}
+      "Urea Nitrogen, Serum/Plasma": {}
+      "Urobilinogen, UA": {}
+      WBC Count: {}
+      "WBCs, UR": {}
+
+  meds:
+    file: meds.csv
+    mode: keyed
+    key_column: FormattedName
+    value_column: null
+    timestamp_column: AdministrationInstant
+    defaults:
+      type: categorical
+      prefix: Med
+    variables:
+      IV fluid: {}
+      acetaminophen: {}
+      acetazolamide: {}
+      acetylcysteine: {}
+      acyclovir: {}
+      acyclovir sodium: {}
+      adenosine: {}
+      "albumin, human": {}
+      albuterol sulfate: {}
+      albuterol sulfate concentrate: {}
+      albuterol sulfate hfa: {}
+      allopurinol: {}
+      alteplase: {}
+      "aluminum-mag hydroxide-simethicone": {}
+      aminophylline: {}
+      amiodarone: {}
+      amlodipine: {}
+      amlodipine benzoate: {}
+      amoxicillin: {}
+      ampicillin: {}
+      "ampicillin-sulbactam": {}
+      anakinra: {}
+      "arginine hcl (l-arginine)": {}
+      "artificial tears(dextran-hypromel-glycern)": {}
+      ascorbic acid (vitamin c): {}
+      aspirin: {}
+      atropine: {}
+      azithromycin: {}
+      bacitracin: {}
+      baclofen: {}
+      beclomethasone diprop: {}
+      beclomethasone dipropionate: {}
+      bisacodyl: {}
+      bosentan: {}
+      budesonide: {}
+      "budesonide dr - er": {}
+      "budesonide-formoterol hfa": {}
+      bumetanide: {}
+      calcitriol: {}
+      calcium: {}
+      calcium chloride: {}
+      calcium gluconate: {}
+      cannabidiol: {}
+      captopril: {}
+      carbamazepine: {}
+      carbidopa: {}
+      carboxymethylcellulose sodium: {}
+      caspofungin: {}
+      cefazolin: {}
+      cefepime: {}
+      ceftazidime: {}
+      ceftriaxone: {}
+      celecoxib: {}
+      cephalexin: {}
+      cetirizine: {}
+      chlorhexidine gluconate: {}
+      chlorothiazide: {}
+      chlorothiazide sodium: {}
+      cholecalciferol (vitamin d: {}
+      ciprofloxacin: {}
+      citrate dextrose solution: {}
+      clindamycin: {}
+      clindamycin hcl: {}
+      clobazam: {}
+      clonazepam: {}
+      clonidine: {}
+      clonidine hcl: {}
+      clotrimazole: {}
+      coenzyme q: {}
+      cyclobenzaprine: {}
+      cyproheptadine: {}
+      dantrolene: {}
+      desmopressin: {}
+      dexamethasone: {}
+      dexamethasone sodium phosphate: {}
+      dexmedetomidine: {}
+      dextran: {}
+      dextrose: {}
+      diazepam: {}
+      diazoxide: {}
+      dicyclomine: {}
+      digoxin: {}
+      diphenhydramine: {}
+      divalproex: {}
+      dobutamine: {}
+      docusate sodium: {}
+      dopamine: {}
+      dornase alfa: {}
+      dronabinol: {}
+      "electrolyte-a intravenous solution": {}
+      enalapril maleate: {}
+      enoxaparin: {}
+      epinephrine: {}
+      epinephrine (jr): { rename: epinephrine }
+      epinephrine hcl: { rename: epinephrine }
+      epinephrine hcl (pf): { rename: epinephrine }
+      ertapenem: {}
+      erythromycin: {}
+      erythromycin ethylsuccinate: {}
+      escitalopram: {}
+      famotidine: {}
+      famotidine (pf): {}
+      fat emulsion: {}
+      "fat emulsion-soybean oil-mct-olive oil-fish oil": {}
+      fentanyl (pf): {}
+      ferrous sulfate: {}
+      filgrastim: {}
+      flu vaccine qs: {}
+      fluconazole: {}
+      fludrocortisone: {}
+      fluocinonide: {}
+      fluorescein: {}
+      fluoxetine: {}
+      fluticasone propionate: {}
+      folic acid: {}
+      fosphenytoin: {}
+      furosemide: {}
+      gabapentin: {}
+      gadoterate meglumine: {}
+      gentamicin: {}
+      glycerin (child) rectal suppository: {}
+      glycopyrrolate: {}
+      granisetron (pf): {}
+      granisetron hcl: {}
+      guanfacine: {}
+      haloperidol: { rename: haloperidol lactate }
+      haloperidol lactate: {}
+      heparin (porcine): {}
+      heparin (porcine) (pf): {}
+      heparin(porcine): {}
+      "heparin, porcine (pf)": {}
+      hydralazine: {}
+      hydrocodone: {}
+      hydrocortisone: {}
+      hydrocortisone sod succinate (pf): {}
+      hydromorphone: {}
+      hydromorphone (pf): {}
+      hydroxyurea: {}
+      hydroxyzine hcl: {}
+      ibuprofen: {}
+      immune glob g: {}
+      "insulin aspart u-": {}
+      "insulin detemir (u-": {}
+      insulin regular: {}
+      iohexol: {}
+      ioversol: {}
+      ipratropium: {}
+      ipratropium bromide: {}
+      isradipine: {}
+      ketamine: {}
+      ketorolac: {}
+      lacosamide: {}
+      lactated ringers intravenous solution: {}
+      "lactobacillus acidophilus, bulgaricus": {}
+      lactobacillus rhamnosus gg: {}
+      lactulose: {}
+      lamotrigine: {}
+      lansoprazole: {}
+      levalbuterol: {}
+      levetiracetam: {}
+      levocarnitine: {}
+      levocarnitine (with sugar): {}
+      levofloxacin: {}
+      levothyroxine: {}
+      lidocaine: {}
+      lidocaine (pf): {}
+      lidocaine hcl: {}
+      "lipase-protease-amylas(pork)": {}
+      "lipase-protease-amylase (porcine)": {}
+      "lipase-protease-amylase (pork)": {}
+      lisinopril: {}
+      loperamide: {}
+      loratadine: {}
+      lorazepam: {}
+      magnesium carbonate: {}
+      magnesium oxide: {}
+      magnesium sulfate: {}
+      medium chain triglycerides (mct): {}
+      melatonin: {}
+      meropenem: {}
+      methadone: {}
+      methylprednisolone: {}
+      methylprednisolone sod succ (pf): {}
+      methylprednisolone sodium succinate: {}
+      metoclopramide: {}
+      metoprolol tartrate: {}
+      metronidazole: {}
+      micafungin: {}
+      midazolam: {}
+      midazolam (pf): {}
+      midodrine: {}
+      milrinone: {}
+      mirtazapine: {}
+      montelukast: {}
+      morphine: {}
+      morphine (pf): {}
+      moxifloxacin: {}
+      multivitamin tablet: {}
+      "multivitamin-iron": {}
+      mupirocin: {}
+      mycophenolate mofetil: {}
+      nafcillin: {}
+      naloxone: {}
+      naproxen: {}
+      nicardipine: {}
+      norepinephrine bitartrate: {}
+      norethindrone acetate: {}
+      nystatin: {}
+      ofloxacin: {}
+      olanzapine: {}
+      omega: {}
+      ondansetron: {}
+      ondansetron hcl: {}
+      ondansetron hcl (pf): {}
+      oseltamivir: {}
+      oxacillin: {}
+      oxcarbazepine: {}
+      oxybutynin chloride: {}
+      oxycodone: {}
+      oxymetazoline: {}
+      pantoprazole: {}
+      pediatric multivitamin no.: {}
+      pediatric multivitamin with iron and other minerals chewable tablet: {}
+      peg: {}
+      penicillin g potassium: {}
+      penicillin v potassium: {}
+      pentobarbital sodium: {}
+      perampanel: {}
+      phenobarbital: {}
+      phenobarbital sodium: {}
+      phenobarbital sodium (bulk): { rename: phenobarbital sodium }
+      phenylephrine: {}
+      phenytoin: {}
+      phenytoin sodium: { rename: phenytoin }
+      phenytoin sodium extended: { rename: phenytoin }
+      phytonadione (vitamin k: {}
+      "piperacillin-tazobactam": {}
+      polyethylene glycol: {}
+      polymyxin b sulfate: {}
+      polyvinyl alcohol: {}
+      posaconazole: {}
+      "potassium bicarbonate-citric acid": {}
+      potassium chloride: {}
+      potassium chloride er: {}
+      "potassium citrate-citric acid": {}
+      "potassium phosphates-mbasic and dibasic": {}
+      "potassium, sodium phosphates": {}
+      prednisolone acetate: {}
+      prednisolone sodium phosphate: {}
+      prednisone: {}
+      pregabalin: {}
+      prochlorperazine edisylate: {}
+      proparacaine: {}
+      propofol: {}
+      propranolol: {}
+      pyridostigmine bromide: {}
+      pyridoxine (vitamin b: {}
+      quetiapine: {}
+      racepinephrine: {}
+      ranitidine: {}
+      riboflavin (vitamin b: {}
+      rifampin: {}
+      rifaximin: {}
+      risperidone: {}
+      rocuronium: {}
+      rufinamide: {}
+      ruxolitinib: {}
+      scopolamine: {}
+      sennosides: {}
+      sertraline: {}
+      sevelamer carbonate: {}
+      sildenafil (pulmonary hypertension): {}
+      simethicone: {}
+      sirolimus: {}
+      sodium bicarbonate: {}
+      sodium chloride: {}
+      sodium citrate: {}
+      "sodium citrate-citric acid": {}
+      "sodium di- and monophosphate-potassium phos monobasic": {}
+      sodium phosphates: {}
+      spironolactone: {}
+      sucralfate: {}
+      sucrose: {}
+      sucrose (bulk) crystals: {}
+      sulfamethoxazole: {}
+      sulfasalazine: {}
+      tacrolimus: {}
+      tadalafil: {}
+      tetrabenazine: {}
+      thiamine hcl (vitamin b: {}
+      tobramycin: {}
+      topiramate: {}
+      tramadol: {}
+      tranexamic acid: {}
+      trazodone: {}
+      triamcinolone acetonide: {}
+      tropicamide: {}
+      ursodiol: {}
+      valganciclovir: {}
+      valproate sodium: {}
+      valproic acid (as sodium salt): {}
+      vancomycin: {}
+      vecuronium bromide: {}
+      vecuronium in sterile water: {}
+      vigabatrin: {}
+      "vitamins a and d-white petrolatum-lanolin topical ointment": {}
+      voriconazole: {}
+      white petrolatum: {}
+      "white petrolatum-mineral oil": {}
+      zinc acetate: {}
+      zinc oxide: {}
+      "zinc oxide-white petrolatum": {}
+      zinc sulfate: {}
+      zonisamide: {}
+
+  procedures:
+    file: procedures.csv
+    mode: keyed
+    key_column: ProcedureName
+    value_column: null
+    timestamp_column: ProcedureStartInstant
+    defaults:
+      type: categorical
+      prefix: Procedure
+    variables:
+      ADULT OR SURGICAL CASE REQUEST: { rename: CONSULT SURGERY }
+      AIRWAY SECRETION CLEARANCE: {}
+      AIRWAY SUCTION: { rename: SUCTION }
+      ANKLE AIR STIRRUP (SPRAIN): { rename: SPLINT }
+      APPLY KNEE IMMOBILIZER (ED ONLY): { rename: SPLINT }
+      APPLY SPLINT: { rename: SPLINT }
+      ARM SLING: { rename: SLING }
+      ARTERIAL BLOOD GAS ONLY: { rename: BLOOD GAS ORDERABLES }
+      "ARTERIAL BLOOD GAS W/CO-OX": { rename: BLOOD GAS ORDERABLES }
+      ARTERIAL BLOOD GAS W/LACTATE: { rename: BLOOD GAS ORDERABLES }
+      ARTERIAL LINE: {}
+      ARTERIAL LINE INSERTION: { rename: ARTERIAL LINE }
+      "BLOOD GAS, ELECTROLYTES, LACTATE, GLUCOSE": { rename: BLOOD GAS ORDERABLES }
+      BURN TREATMENT: { rename: WOUND/BURN }
+      CAPILLARY BLOOD GAS: { rename: BLOOD GAS ORDERABLES }
+      CAPILLARY BLOOD GAS ONLY: { rename: BLOOD GAS ORDERABLES }
+      CENTRAL LINE: {}
+      CENTRAL VENOUS BLOOD GAS W/LACTATE: { rename: BLOOD GAS ORDERABLES }
+      "CHG CHEST X-RAY 2 VW": { rename: XR CHEST }
+      "CHG CT SCAN,ABDOMEN  AND PELVIS,W CONTRAST": { rename: CT ABDOMEN }
+      "CHG CT SCAN,ABDOMENT AND PELVIS,W/O CONTRAST": { rename: CT ABDOMEN }
+      CHG DIAGNOSTIC COMPUTED TOMOGRAPHY THORAX W/CONTRAST: { rename: CT CHEST }
+      "CHG RADEX HIP UNILATERAL WITH PELVIS 2-3 VIEWS": { rename: XR PELVIS }
+      "CHG RADEX HIPS BILATERAL WITH PELVIS 3-4 VIEWS": { rename: XR PELVIS }
+      CHG RADEX SPINE CERVICAL 2 OR 3 VIEWS: { rename: XR CSPINE }
+      CHG RADIOLOGIC EXAM ABDOMEN 1 VIEW: { rename: XR ABDOMEN }
+      CHG RADIOLOGIC EXAM ABDOMEN 2 VIEWS: { rename: XR ABDOMEN }
+      CHG RADIOLOGIC EXAM CHEST 2 VIEWS: { rename: XR CHEST }
+      CHG RADIOLOGIC EXAM CHEST SINGLE VIEW: { rename: XR CHEST }
+      CHG RADIOLOGIC EXAM UPR GI TRC SINGLE CONTRAST STUDY: { rename: XR ABDOMEN }
+      CHG RADIOLOGIC EXAMINATION FEMUR MINIMUM 2 VIEWS: { rename: XR LEG }
+      CHG US BREAST UNI REAL TIME WITH IMAGE LIMITED: { rename: US CHEST }
+      "CHG X-RAY ANKLE 2 VW": { rename: XR ANKLE }
+      "CHG X-RAY ANKLE 3+ VW": { rename: XR ANKLE }
+      "CHG X-RAY ELBOW 2 VW": { rename: XR ELBOW }
+      "CHG X-RAY ELBOW 3+ VW": { rename: XR ELBOW }
+      "CHG X-RAY EXAM OF FINGER(S)": { rename: XR HAND }
+      "CHG X-RAY FOOT 2 VW": { rename: XR FOOT }
+      "CHG X-RAY FOOT 3+ VW": { rename: XR FOOT }
+      "CHG X-RAY FOREARM 2 VW": { rename: XR ARM }
+      "CHG X-RAY HAND 2 VW": { rename: XR HAND }
+      "CHG X-RAY HAND 3+ VW": { rename: XR HAND }
+      "CHG X-RAY HUMERUS": { rename: XR SHOULDER }
+      "CHG X-RAY KNEE 1 OR 2 VIEW": { rename: XR KNEE }
+      "CHG X-RAY KNEE 3 VIEW": { rename: XR KNEE }
+      "CHG X-RAY KNEE 4+ VIEW": { rename: XR KNEE }
+      "CHG X-RAY LUMBAR SPINE 2/3 VW": { rename: XR SPINE }
+      "CHG X-RAY PELVIS 1/2 VW": { rename: XR PELVIS }
+      "CHG X-RAY SACRUM/COCCYX 2+ VW": { rename: XR SPINE }
+      "CHG X-RAY SHOULDER 1 VW": { rename: XR SHOULDER }
+      "CHG X-RAY SHOULDER 2+ VW": { rename: XR SHOULDER }
+      "CHG X-RAY SKULL <4 VW": { rename: XR HEAD }
+      "CHG X-RAY THORACIC SPINE 2 VW": { rename: XR SPINE }
+      "CHG X-RAY TIB + FIB, 2VW": { rename: XR LEG }
+      "CHG X-RAY TOE(S)": { rename: XR FOOT }
+      "CHG X-RAY WRIST 2 VW": { rename: XR WRIST }
+      "CHG X-RAY WRIST 3+ VW": { rename: XR WRIST }
+      CIRCUIT BLOOD GAS VENOUS: { rename: BLOOD GAS ORDERABLES }
+      COLONOSCOPY / UPPER ENDOSCOPY: { rename: ENDOSCOPY PROCEDURE ORDERABLES }
+      CT ABDOMEN/PELVIS WITH AND WITHOUT CONTRAST: { rename: CT ABDOMEN }
+      CT ABDOMEN/PELVIS WITH AND WITHOUT CONTRAST (S): { rename: CT ABDOMEN }
+      CT ABDOMEN/PELVIS WITH CONTRAST: { rename: CT ABDOMEN }
+      CT ABDOMEN/PELVIS WITH CONTRAST (O): { rename: CT ABDOMEN }
+      CT ABDOMEN/PELVIS WITH CONTRAST (S): { rename: CT ABDOMEN }
+      CT ABDOMEN/PELVIS WITHOUT CONTRAST: { rename: CT ABDOMEN }
+      CT ABDOMEN/PELVIS WITHOUT CONTRAST (S): { rename: CT ABDOMEN }
+      CT ANGIOGRAM ABDOMEN WITH AND WITHOUT CONTRAST: { rename: CT ABDOMEN }
+      CT ANGIOGRAM ABDOMEN/PELVIS WITH AND WITHOUT CONTRAST: { rename: CT ABDOMEN }
+      CT ANGIOGRAM BRAIN: { rename: CT BRAIN }
+      CT ANGIOGRAM CHEST: { rename: CT CHEST }
+      CT ANGIOGRAM NECK: { rename: CT NECK }
+      CT BRAIN WITH CONTRAST: { rename: CT BRAIN }
+      CT BRAIN WITHOUT CONTRAST: { rename: CT BRAIN }
+      CT BRAIN WITHOUT CONTRAST (O): { rename: CT BRAIN }
+      CT BRAIN WITHOUT CONTRAST (S): { rename: CT BRAIN }
+      CT CERVICAL SPINE WITHOUT CONTRAST: { rename: CT CSPINE }
+      CT CERVICAL SPINE WITHOUT CONTRAST (S): { rename: CT CSPINE }
+      CT CHEST ABDOMEN PELVIS WITH CONTRAST: { rename: CT ABDOMEN }
+      CT CHEST WITH CONTRAST: { rename: CT CHEST }
+      CT CHEST WITH CONTRAST (S): { rename: CT CHEST }
+      CT CHEST WITHOUT CONTRAST: { rename: CT CHEST }
+      "CT LOWER EXTREMITY WITHOUT CONTRAST, LEFT": { rename: CT LEG }
+      "CT LOWER EXTREMITY WITHOUT CONTRAST, RIGHT": { rename: CT LEG }
+      CT MAXILLOFACIAL WITH CONTRAST: { rename: CT FACIAL }
+      CT MAXILLOFACIAL WITHOUT CONTRAST: { rename: CT FACIAL }
+      CT MAXILLOFACIAL WITHOUT CONTRAST (S): { rename: CT FACIAL }
+      CT NECK WITH CONTRAST: { rename: CT NECK }
+      CT NECK WITH CONTRAST (S): { rename: CT NECK }
+      CT NECK WITHOUT CONTRAST: { rename: CT NECK }
+      CT ORBIT WITH CONTRAST: { rename: CT FACIAL }
+      CT ORBIT WITHOUT CONTRAST: { rename: CT FACIAL }
+      CT SINUSES WITH CONTRAST: { rename: CT FACIAL }
+      CT SINUSES WITHOUT CONTRAST: { rename: CT FACIAL }
+      CT TEMPORAL BONE WITH CONTRAST: { rename: CT BRAIN }
+      "CT UPPER EXTREMITY WITHOUT CONTRAST, LEFT": { rename: CT ARM }
+      "CT UPPER EXTREMITY WITHOUT CONTRAST, RIGHT": { rename: CT ARM }
+      CTA CHEST PULMONARY EMBOLISM (CTPE): { rename: CT CHEST }
+      ECG 12 LEAD UNIT PERFORMED: { rename: EKG }
+      "ECG 12-LEAD": { rename: EKG }
+      "ECG 15 LEAD, PEDIATRIC": { rename: EKG }
+      EEG AND VIDEO TELEMETRY: { rename: EEG/TELE }
+      EMERGENCY NORA CASE REQUEST: { rename: CONSULT SURGERY }
+      "ENDOSCOPY, SIGMOID": { rename: ENDOSCOPY PROCEDURE ORDERABLES }
+      ET TUBE REPOSITIONING: {}
+      EXTUBATION: {}
+      "FOREIGN BODY REMOVAL - EMBEDDED": { rename: FOREIGN BODY }
+      "FOREIGN BODY REMOVAL - ORIFICE": { rename: FOREIGN BODY }
+      GASTRIC LAVAGE: {}
+      HC PSYTX CRISIS EA ADDL 30 MIN: { rename: PSYCH CRISIS }
+      HC PSYTX CRISIS INITIAL 60 MIN: { rename: PSYCH CRISIS }
+      INCISION AND DRAINAGE: {}
+      INPATIENT TRANSTHORACIC: { rename: ECHO }
+      INSERT PERIPHERAL IV: {}
+      INSERT PICC LINE: {}
+      INTUBATION: {}
+      IP CONSULT TO CHILD LIFE: { rename: CONSULT CHILD LIFE }
+      IP CONSULT TO PEDIATRIC INFECTIOUS DISEASE: { rename: CONSULT INFECTIOUS DISEASE }
+      IP CONSULT TO PEDIATRIC NEUROLOGY: { rename: CONSULT NEUROLOGY }
+      IP CONSULT TO PEDIATRIC PSYCHIATRY: { rename: CONSULT PSYCH }
+      IP CONSULT TO PEDIATRIC SURGERY: { rename: CONSULT SURGERY }
+      IP CONSULT TO SOCIAL WORK: { rename: CONSULT SOCIAL WORK }
+      IR US GUIDED ABSCESS DRAIN (ORDERABLE BY IR SERVICE ONLY): { rename: INCISION AND DRAINAGE }
+      LACERATION REPAIR: { rename: LAC }
+      LUMBAR PUNCTURE: {}
+      MIXED VENOUS BLOOD GAS ONLY: { rename: BLOOD GAS ORDERABLES }
+      "MIXED VENOUS BLOOD GAS W/ CO-OX (INCLUDES THB, O2HB, COHB, METHB, CTO2)": { rename: BLOOD GAS ORDERABLES }
+      "MIXED VENOUS BLOOD GAS W/ LACTATE (INCLUDES NA+, K+, CA++, CL-, GLU, HCT, THB)": { rename: BLOOD GAS ORDERABLES }
+      MR ABDOMEN AND MRCP WITH AND WITHOUT CONTRAST: { rename: MR ABDOMEN }
+      MR ABDOMEN AND MRCP WITHOUT CONTRAST: { rename: MR ABDOMEN }
+      MR ABDOMEN WITH AND WITHOUT CONTRAST: { rename: MR ABDOMEN }
+      MR ABDOMEN WITHOUT CONTRAST: { rename: MR ABDOMEN }
+      MR ABDOMEN WITHOUT CONTRAST FOCUSED: { rename: MR ABDOMEN }
+      MR ABDOMEN/PELVIS WITH AND WITHOUT CONTRAST: { rename: MR ABDOMEN }
+      MR ABDOMEN/PELVIS WITHOUT CONTRAST: { rename: MR ABDOMEN }
+      MR ANGIOGRAM BRAIN WITHOUT CONTRAST: { rename: MR BRAIN }
+      MR ANGIOGRAM NECK WITHOUT CONTRAST: { rename: MR NECK }
+      MR APPENDIX WITHOUT CONTRAST: { rename: MR APPENDIX }
+      MR BRAIN WITH AND WITHOUT CONTRAST: { rename: MR BRAIN }
+      MR BRAIN WITH AND WITHOUT CONTRAST (S): { rename: MR BRAIN }
+      MR BRAIN WITHOUT CONTRAST: { rename: MR BRAIN }
+      "MR BRAIN, MRA BRAIN, MRA NECK - WITHOUT CONTRAST FOCUSED STROKE": { rename: MR BRAIN }
+      MR BRAIN/MR ANGIOGRAM WITH AND WITHOUT CONTRAST: { rename: MR BRAIN }
+      MR BRAIN/MR ANGIOGRAM WITHOUT CONTRAST: { rename: MR BRAIN }
+      MR CERVICAL SPINE FOCUSED: { rename: MR CSPINE }
+      MR CERVICAL SPINE WITH AND WITHOUT CONTRAST: { rename: MR CSPINE }
+      MR CERVICAL SPINE WITH CONTRAST: { rename: MR CSPINE }
+      MR CERVICAL SPINE WITHOUT CONTRAST: { rename: MR CSPINE }
+      MR CHEST WITH AND WITHOUT CONTRAST: { rename: MR CHEST }
+      MR ENTEROGRAPHY WITH AND WITHOUT CONTRAST: { rename: MR ABDOMEN }
+      "MR FACE, NASO, NECK WITH AND WITHOUT CONTRAST": { rename: MR FACIAL }
+      "MR KNEE WITH AND WITHOUT CONTRAST, RIGHT": { rename: MR LEG }
+      MR LUMBAR SPINE FOCUSED: { rename: MR SPINE }
+      MR LUMBAR SPINE WITH AND WITHOUT CONTRAST: { rename: MR SPINE }
+      MR LUMBAR SPINE WITH CONTRAST: { rename: MR SPINE }
+      MR LUMBAR SPINE WITHOUT CONTRAST: { rename: MR SPINE }
+      MR ORBIT WITH AND WITHOUT CONTRAST: { rename: MR FACIAL }
+      MR PEDIATRIC FOCUSED BRAIN WITHOUT CONTRAST: { rename: MR BRAIN }
+      MR PELVIS WITH AND WITHOUT CONTRAST (ABD RAD PERFORMED): { rename: MR PELVIS }
+      MR PELVIS WITHOUT CONTRAST (ABD RAD PERFORMED): { rename: MR PELVIS }
+      MR SPECTROSCOPY: {}
+      MR THORACIC SPINE WITH AND WITHOUT CONTRAST: { rename: MR SPINE }
+      MR TOTAL SPINE WITH AND WITHOUT CONTRAST: { rename: MR SPINE }
+      MR TOTAL SPINE WITH CONTRAST: { rename: MR SPINE }
+      MR TOTAL SPINE WITHOUT CONTRAST: { rename: MR SPINE }
+      MR VENOGRAM BRAIN WITH AND WITHOUT CONTRAST: { rename: MR BRAIN }
+      MR VENOGRAM BRAIN WITHOUT CONTRAST: { rename: MR BRAIN }
+      MR WHOLE BODY PEDIATRIC WITH AND WITHOUT CONTRAST: { rename: MR WHOLE BODY }
+      MR WHOLE BODY PEDIATRIC WITHOUT CONTRAST: { rename: MR WHOLE BODY }
+      NCPL BLOOD GAS (PARNASSUS AND MB): { rename: BLOOD GAS ORDERABLES }
+      NCPL BLOOD GAS AND COOXIMETRY (PARNASSUS AND MB): { rename: BLOOD GAS ORDERABLES }
+      NCPL BLOOD GAS AND ELECTROLYTES (PARNASSUS AND MB): { rename: BLOOD GAS ORDERABLES }
+      "NCPL BLOOD GAS, COOXIMETRY, LACTATE (PARNASSUS AND MB)": { rename: BLOOD GAS ORDERABLES }
+      "NCPL BLOOD GAS, ELECTROLYTES, COOX, LACTATE (PARNASSUS AND MB)": { rename: BLOOD GAS ORDERABLES }
+      "NCPL BLOOD GAS, ELECTROLYTES, GLUCOSE (PARNASSUS AND MB)": { rename: BLOOD GAS ORDERABLES }
+      "NCPL BLOOD GAS, ELECTROLYTES, LACTATE (PARNASSUS AND MB)": { rename: BLOOD GAS ORDERABLES }
+      "NCPL BLOOD GAS, LACTATE (PARNASSUS AND MB)": { rename: BLOOD GAS ORDERABLES }
+      "NCPL ELECTROLYTES (BLOOD GAS SAMPLE, PARNASSUS AND MB)": { rename: BLOOD GAS ORDERABLES }
+      "NCPL LACTATE (BLOOD GAS SAMPLE, PARNASSUS AND MB)": { rename: BLOOD GAS ORDERABLES }
+      "NCPL OR BLOOD GAS, COOXIMETRY, LACTATE (PARNASSUS AND MB)": { rename: BLOOD GAS ORDERABLES }
+      "NCPL OR BLOOD GAS, LACTATE (PARNASSUS AND MB)": { rename: BLOOD GAS ORDERABLES }
+      NERVE BLOCK: {}
+      "ORTHOPEDIC INJURY TREATMENT - FRACTURE DISLOCATION": { rename: REDUCTION }
+      "ORTHOPEDIC INJURY TREATMENT - LOWER EXTREMITY DISLOCATION": { rename: REDUCTION }
+      "ORTHOPEDIC INJURY TREATMENT - NURSEMAID ELBOW": { rename: REDUCTION }
+      "ORTHOPEDIC INJURY TREATMENT - UPPER EXTRMEITY DISLOCATION": { rename: REDUCTION }
+      OUTSIDE IMAGES: {}
+      PEDIATRIC COLONOSCOPY: { rename: ENDOSCOPY PROCEDURE ORDERABLES }
+      PEDIATRIC CONGENITAL FULL TRANSTHORACIC ECHO: { rename: ECHO }
+      PEDIATRIC ECHO: { rename: ECHO }
+      PEDIATRIC OR SURGICAL CASE REQUEST: { rename: CONSULT SURGERY }
+      PEDIATRIC UPPER GI ENDOSCOPY: { rename: ENDOSCOPY PROCEDURE ORDERABLES }
+      POC US ABSCESS DRAINAGE EMERGDEPT: { rename: POCUS }
+      POC US APPENDIX EMERGDEPT: { rename: POCUS }
+      POC US BLADDER VOLUME EMERGDEPT: { rename: POCUS }
+      POC US BOWEL EMERGDEPT: { rename: POCUS }
+      POC US CARDIAC ECHOCARDIOGRAPHY EMERGDEPT: { rename: ECHO }
+      POC US CARDIORESPIRATORY EMERGDEPT: { rename: POCUS }
+      "POC US E-FAST EXAM EMERGDEPT": { rename: POCUS FAST }
+      POC US EDUCATION EMERGDEPT: { rename: POCUS }
+      POC US EXTREMITY (SOFT TISSUE) EMERGDEPT: { rename: POCUS }
+      POC US FAST EXAM EMERGDEPT: { rename: POCUS FAST }
+      POC US GALLBLADDER/BILIARY EMERGDEPT: { rename: POCUS }
+      POC US HEAD/NECK EMERGDEPT: { rename: POCUS }
+      POC US HIP EMERGDEPT: { rename: POCUS }
+      POC US INTUSSUSCEPTION EMERGDEPT: { rename: POCUS }
+      POC US MUSCULOSKELETAL EMERGDEPT: { rename: POCUS }
+      POC US RENAL EMERGDEPT: { rename: POCUS }
+      POC US SOFT TISSUE EMERGDEPT: { rename: POCUS }
+      POC US THORACIC EMERGDEPT: { rename: POCUS }
+      "PR APPLY FINGER SPLINT,STATIC": { rename: FINGER SPLINT }
+      PR APPLY FOREARM CAST: { rename: CAST }
+      "PR APPLY FOREARM SPLINT,STATIC": { rename: SPLINT }
+      PR APPLY LONG ARM CAST: { rename: CAST }
+      PR APPLY LONG ARM SPLINT: { rename: SPLINT }
+      PR APPLY LONG LEG CAST: { rename: CAST }
+      PR APPLY LONG LEG SPLINT: { rename: SPLINT }
+      PR APPLY LOWER LEG SPLINT: { rename: SPLINT }
+      PR APPLY SHORT LEG CAST: { rename: CAST }
+      "PR CHEST X-RAY 1 VW": { rename: XR CHEST }
+      "PR CLOSE RX PROX/MID FING SHFT FX,MANIP": { rename: REDUCTION }
+      PR CLOSED RX DIST RAD/ULNA FX: { rename: REDUCTION }
+      "PR CLOSED RX DIST RAD/ULNA FX,MANIPUL": { rename: REDUCTION }
+      PR CLOSED RX ELBOW DISLOCATION: { rename: REDUCTION }
+      "PR CLOSED RX HUM SUPRACONDYLR FX,MANIPU": { rename: REDUCTION }
+      PR CLOSED RX IP JT DISLOCATION: { rename: REDUCTION }
+      PR CLOSED RX KNEECAP DISLOCATN: { rename: REDUCTION }
+      "PR CLOSED RX RADIAL HEAD DISLOC,CHILD": { rename: REDUCTION }
+      "PR CLOSED RX RADIAL HEAD/NECK FX,MANIP": { rename: REDUCTION }
+      PR CLOSED RX SHLDR DISLOCATION: { rename: REDUCTION }
+      "PR CLOSED RX TIBIA SHAFT FX,MANIPULATN": { rename: REDUCTION }
+      "PR CLOSED RX WEIGHT BEAR DIST TIB,MANIP": { rename: REDUCTION }
+      "PR CT ANGIO,NECK COMBO,INCL IMAGE PROCESS": { rename: CT NECK }
+      PR CT NECK TISSUE CONTRAST: { rename: CT NECK }
+      PR CT SCAN SKULL CONTRAST: { rename: CT BRAIN }
+      "PR CT SCAN, FACE/JAW CONTRAST": { rename: CT FACIAL }
+      "PR CT SCAN,CERVICAL SPINE,W/O CONTRAST": { rename: CT CSPINE }
+      "PR CT SCAN,HEAD/BRAIN,W/O CONTRAST MATL": { rename: CT BRAIN }
+      "PR CT SCAN,LOWER EXTREMITY,W/O CONTRAST": { rename: CT LEG }
+      "PR CT SCAN,MAXILLOFACIAL AREA,W/O CONTRAST": { rename: CT FACIAL }
+      "PR CT SCAN,ORBIT/SELLA/POST FOSSA/EAR,W/O": { rename: CT FACIAL }
+      "PR CT SCAN,UPPER EXTREMITY,W/O CONTRAST": { rename: CT ARM }
+      PR DIAGNOSTIC LUMBAR SPINAL PUNCTURE: { rename: LUMBAR PUNCTURE }
+      "PR DOPPLER ECHO HEART,LIMITED,F/U": { rename: ECHO }
+      "PR DRAIN FINGER ABSCESS,SIMPLE": { rename: INCISION AND DRAINAGE }
+      PR DRAIN SKIN ABSCESS COMPLIC: { rename: INCISION AND DRAINAGE }
+      PR DRAIN SKIN ABSCESS SIMPLE: { rename: INCISION AND DRAINAGE }
+      PR DRESS/DEBRID SMALL BURN NO ANES: { rename: WOUND/BURN }
+      "PR DUPLEX ABD/PEL VASC STUDY,COMPLETE": { rename: US ABDOMEN }
+      "PR DUPLEX EXTREM VENOUS,UNI OR LTD": { rename: US ARM }
+      "PR ECHO HEART XTHORACIC,COMPLETE W DOPPLER": { rename: ECHO }
+      "PR ECHO HEART XTHORACIC,LIMITED": { rename: ECHO }
+      "PR ECHO XTHORACIC,CONG ANOM,LIMITED": { rename: ECHO }
+      "PR ECHO,SCROTUM & CONTENTS": { rename: US SCROTUM }
+      "PR ECHOGRAPHY,TRANSVAGINAL": { rename: US PELVIS }
+      PR EEG CONT REC W/VIDEO BY TECH MIN 8 CHANNELS: { rename: EEG/TELE }
+      PR EEG MONITORING/VIDEORECORD: { rename: EEG/TELE }
+      PR EGD FLEXIBLE FOREIGN BODY REMOVAL: { rename: FOREIGN BODY }
+      PR ELECTROCARDIOGRAM REPORT: { rename: EKG }
+      "PR ELECTROCARDIOGRAM, TRACING": { rename: EKG }
+      "PR INJECTION,THERAP/PROPH/DIAGNOST, IV PUSH, EA ADD, SAME DRUG": { rename: PR CHEMOTHERAPY SERVICES }
+      "PR INTERM REPAIR FACIAL AREA; 2.6-5 CM": { rename: LAC }
+      "PR INTERM REPAIR FACIAL AREA; Á<2.5 CM": { rename: LAC }
+      "PR INTERM REPAIR SCALP,TRUNK, ARM,LEG <2.5 CM": { rename: LAC }
+      "PR INTERM RPR SCALP,TRUNK,ARM,LEG; 2.6-7.5 CM": { rename: LAC }
+      "PR INTERM RPR,NECK,HAND,FEET,GENITALIA <2.5 CM": { rename: LAC }
+      PR IV INFUSION THER PROPH ADDL SEQUENTIAL TO 1 HR: { rename: PR CHEMOTHERAPY SERVICES }
+      PR MOD SED OTHER PHYS/QHP EACH ADDL 15 MINS: { rename: SEDATION }
+      "PR MOD SED OTHER PHYS/QHP INITIAL 15 MINS 5/> YRS": { rename: SEDATION }
+      "PR MOD SED OTHER PHYS/QHP INITIAL 15 MINS <5 YRS": { rename: SEDATION }
+      PR MOD SED SAME PHYS/QHP EACH ADDL 15 MINS: { rename: SEDATION }
+      "PR MOD SED SAME PHYS/QHP INITIAL 15 MINS 5/> YRS": { rename: SEDATION }
+      "PR MOD SED SAME PHYS/QHP INITIAL 15 MINS <5 YRS": { rename: SEDATION }
+      "PR MR ANGIO, HEAD": { rename: MR BRAIN }
+      "PR MR ANGIO, NECK": { rename: MR NECK }
+      PR MRI BRAIN: { rename: MR BRAIN }
+      PR MRI BRAIN COMBO: { rename: MR BRAIN }
+      "PR MRI LOWER EXTREM JT, W/O CONTRAST": { rename: MR LEG }
+      "PR MRI, ABDOMEN (MRI)": { rename: MR ABDOMEN }
+      "PR MRI, ABDOMEN, COMBO": { rename: MR ABDOMEN }
+      "PR MRI, CERV SPINE": { rename: MR CSPINE }
+      "PR MRI, CERV SPINE COMBO": { rename: MR CSPINE }
+      "PR MRI, DORSAL SPINE COMBO": { rename: MR SPINE }
+      "PR MRI, FACE, NECK, COMBO": { rename: MR FACIAL }
+      "PR MRI, LUMBAR SPINE": { rename: MR SPINE }
+      "PR MRI, LUMBAR SPINE COMBO": { rename: MR SPINE }
+      "PR MRI, PELVIS, COMBO": { rename: MR PELVIS }
+      "PR MRI, PELVIS, W/O CONTRAST": { rename: MR PELVIS }
+      PR PERCUT FIX HUM SUPRACONDYLAR FX: { rename: REDUCTION }
+      PR PUNCTURE DRAINAGE OF LESION: { rename: INCISION AND DRAINAGE }
+      PR REMOVE FOREIGN BODY SIMPLE: { rename: FOREIGN BODY }
+      PR REMOVE NASAL FOREIGN BODY: { rename: FOREIGN BODY }
+      PR REMV EXT CANAL FOREIGN BODY: { rename: FOREIGN BODY }
+      "PR REMV FOOT FOREIGN BODY,SUBCUTANEOUS": { rename: FOREIGN BODY }
+      "PR REPR SUP NPTERF WND BODY 2.6-7.5": { rename: LAC }
+      "PR REPR SUPERF WND BODY <2.5CM": { rename: LAC }
+      "PR REPR SUPERF WND FACE 2.6-5": { rename: LAC }
+      "PR REPR SUPERF WND FACE <2.5CM": { rename: LAC }
+      PR STRAPPING OF HAND OR FINGER: { rename: SPLINT }
+      "PR STRAPPING; ANKLE &/OR FOOT": { rename: SPLINT }
+      "PR US, EYE B-SCAN": { rename: US FACE }
+      "PR US,PELVIC (NONOBSTETRIC),REAL TIME,COMPLETE": { rename: US PELVIS }
+      "PR US,PELVIC (NONOBSTETRIC),REAL TIME,LIMITED": { rename: US PELVIS }
+      "PR US,RETROPERIT,REAL TIME,COMPLETE": { rename: US KIDNEY }
+      "PR VEEG BY TECH 2-12 HOURS UNMONITORED": { rename: EEG/TELE }
+      "PR VEEG BY TECH 2-12 HR CONTINUOUS R-T MONITORING": { rename: EEG/TELE }
+      "PR VEEG BY TECH 2-12 HR INTERMITTENT MONITORING": { rename: EEG/TELE }
+      "PR VEEG BY TECH EA INCR 12-26 HR INTERMITTENT MNTR": { rename: EEG/TELE }
+      "PR X-RAY ABDOMEN 1 VW": { rename: XR ABDOMEN }
+      "PR X-RAY ABDOMEN 2 VW": { rename: XR ABDOMEN }
+      "PR X-RAY B.E. REDUCTN INTUSS": { rename: XR ABDOMEN }
+      "PR X-RAY CLAVICLE": { rename: XR CLAVICLE }
+      "PR X-RAY NASAL BONES": { rename: XR FACIAL }
+      "PR X-RAY NECK SOFT TISSUE": { rename: XR CSPINE }
+      "PR X-RAY SPINE ONE VIEW": { rename: XR CSPINE }
+      "PR X-RAY TOMOGRAM": {}
+      PROCEDURAL SEDATION: { rename: SEDATION }
+      RESTING HAND SPLINT: { rename: SPLINT }
+      SPLINT APPLICATION: { rename: SPLINT }
+      SUCTION NOSE: {}
+      TRANSFUSE CRYOPRECIPITATE: { rename: BLOOD TRANSFUSION ORDERABLES }
+      TRANSFUSE CRYOPRECIPITATE (BCHO): { rename: BLOOD TRANSFUSION ORDERABLES }
+      TRANSFUSE CRYOPRECIPITATE (IN ML): { rename: BLOOD TRANSFUSION ORDERABLES }
+      TRANSFUSE FRESH FROZEN PLASMA: { rename: BLOOD TRANSFUSION ORDERABLES }
+      TRANSFUSE FRESH FROZEN PLASMA (IN ML): { rename: BLOOD TRANSFUSION ORDERABLES }
+      TRANSFUSE PLATELETS: { rename: BLOOD TRANSFUSION ORDERABLES }
+      TRANSFUSE PLATELETS (ADDITIONAL DISPENSE): { rename: BLOOD TRANSFUSION ORDERABLES }
+      "TRANSFUSE PLATELETS (ANESTHESIA - BCHO)": { rename: BLOOD TRANSFUSION ORDERABLES }
+      TRANSFUSE PLATELETS (IN ML): { rename: BLOOD TRANSFUSION ORDERABLES }
+      TRANSFUSE RED BLOOD CELLS: { rename: BLOOD TRANSFUSION ORDERABLES }
+      TRANSFUSE RED BLOOD CELLS (ADDITIONAL DISPENSE): { rename: BLOOD TRANSFUSION ORDERABLES }
+      "TRANSFUSE RED BLOOD CELLS (ANESTHESIA - BCHO)": { rename: BLOOD TRANSFUSION ORDERABLES }
+      TRANSFUSE RED BLOOD CELLS (IN ML): { rename: BLOOD TRANSFUSION ORDERABLES }
+      ULTRASOUND ED LIMITED: { rename: POCUS }
+      ULTRASOUND MUSCULOSKELETAL UNILATERAL (JOINT/TENDON/MUSCLE): { rename: US MUSCULOSKELETAL }
+      UPPER ENDOSCOPY: { rename: ENDOSCOPY PROCEDURE ORDERABLES }
+      US ABDOMEN COMPLETE (RADIOLOGY PERFORMED): { rename: US ABDOMEN }
+      US ABDOMEN COMPLETE (S): { rename: US ABDOMEN }
+      US ABDOMEN COMPLETE WITH DOPPLER (RADIOLOGY PERFORMED): { rename: US ABDOMEN }
+      US ABDOMEN LIMITED: { rename: US ABDOMEN }
+      US ABDOMEN LIMITED (S): { rename: US ABDOMEN }
+      US ABDOMEN LIMITED WITH DOPPLER: { rename: US ABDOMEN }
+      US APPENDIX (RLQ): { rename: US APPENDIX }
+      US APPENDIX (RLQ) (S): { rename: US APPENDIX }
+      "US BREAST LIMITED, RIGHT": { rename: US CHEST }
+      US CHEST/MEDIASTINUM: { rename: US CHEST }
+      "US COMPLETE PELVIS,F/M DOPPLER (RADIOLOGY PERFORMED)": { rename: US PELVIS }
+      "US DOPPLER LOWER EXTREMITY VENOUS, BILATERAL (RAD PERFORMED)": { rename: US LEG }
+      "US DOPPLER LOWER EXTREMITY VENOUS, LEFT (RADIOLOGY PERFORMED)": { rename: US LEG }
+      "US DOPPLER LOWER EXTREMITY VENOUS, RIGHT (RADIOLOGY PERFORMED)": { rename: US LEG }
+      "US DOPPLER UPPER EXTREMITY VENOUS, BILATERAL (RAD PERFORMED)": { rename: US ARM }
+      "US DOPPLER UPPER EXTREMITY VENOUS, LEFT (RADIOLOGY PERFORMED)": { rename: US ARM }
+      "US DOPPLER UPPER EXTREMITY VENOUS, RIGHT (RADIOLOGY PERFORMED)": { rename: US ARM }
+      US EXTREMITY SOFT TISSUE  (RADIOLOGY PERFORMED): { rename: US ARM }
+      US HEAD: {}
+      US HIPS (EFFUSION): { rename: US PELVIS }
+      US KIDNEYS AND BLADDER W/DOPPLER: { rename: US KIDNEY }
+      "US LOWER EXTREMITY LEFT (SOFT TISSUE, NON-VASCULAR, NON-MSK)": { rename: US LEG }
+      "US LOWER EXTREMITY RIGHT (SOFT TISSUE, NON-VASCULAR, NON-MSK)": { rename: US LEG }
+      "US NECK, LIMITED": { rename: US NECK }
+      US NECK/PARATHYROID/THYROID: { rename: US NECK }
+      US NEUROSONOGRAM(INFANT BRAIN): { rename: US HEAD }
+      US PELVIS COMPLETE (S): { rename: US PELVIS }
+      US PELVIS LIMITED (S): { rename: US PELVIS }
+      US PELVIS TRANSABDOMINAL ONLY (RADIOLOGY PERFORMED): { rename: US PELVIS }
+      US RENAL TRANSPLANT: { rename: US KIDNEY }
+      US RENAL WITH DOPPLER: { rename: US KIDNEY }
+      US RENAL/KIDNEY: { rename: US KIDNEY }
+      US SCROTUM AND CONTENTS (S): { rename: US SCROTUM }
+      US SCROTUM WITH DOPPLER: { rename: US SCROTUM }
+      "US SOFT TISSUE (LUMP EVALUATION, RADIOLOGY PERFORMED)": { rename: US SOFT TISSUE }
+      US SOFT TISSUE HEAD OR NECK: { rename: US HEAD }
+      US SOFT TISSUE HEAD OR NECK (S): { rename: US HEAD }
+      US SPINAL CANAL: { rename: US SPINE }
+      "US, ABDOM,B-SCAN &/OR REAL TIME,COMPLETE": { rename: US ABDOMEN }
+      "US, ABDOMEN LIMITED": { rename: US ABDOMEN }
+      "US, CHEST,REAL TIME": { rename: US CHEST }
+      "US, HEAD, REAL TIME": { rename: US HEAD }
+      "US, HEAD/NECK TISSUES,REAL TIME": { rename: US HEAD }
+      "US, RETROPERITNL ABD,  LTD": { rename: US ABDOMEN }
+      VENOUS BLOOD GAS ONLY: { rename: BLOOD GAS ORDERABLES }
+      "VENOUS BLOOD GAS W/CO-OX": { rename: BLOOD GAS ORDERABLES }
+      VENOUS BLOOD GAS W/LACTATE: { rename: BLOOD GAS ORDERABLES }
+      WOUND CARE: { rename: WOUND/BURN }
+      XR ABDOMEN COMPLETE: { rename: XR ABDOMEN }
+      XR ABDOMEN COMPLETE (S): { rename: XR ABDOMEN }
+      "XR ANKLE 2 VIEWS, LEFT": { rename: XR ANKLE }
+      "XR ANKLE 2 VIEWS, RIGHT": { rename: XR ANKLE }
+      "XR ANKLE 3 VIEWS, LEFT": { rename: XR ANKLE }
+      "XR ANKLE 3 VIEWS, LEFT (S)": { rename: XR ANKLE }
+      "XR ANKLE 3 VIEWS, RIGHT": { rename: XR ANKLE }
+      XR BONE SURVEY INFANT OR CHILD: { rename: XR BONE SURVEY }
+      "XR BONE SURVEY, COMPLETE": { rename: XR BONE SURVEY }
+      XR CERVICAL COMPLETE FLEX EXTENSION: { rename: XR CSPINE }
+      XR CERVICAL SPINE AP AND LATERAL: { rename: XR CSPINE }
+      "XR CERVICAL SPINE-LATERAL ONLY": { rename: XR CSPINE }
+      XR CHEST 1 VIEW: { rename: XR CHEST }
+      XR CHEST 1 VIEW (S): { rename: XR CHEST }
+      XR CHEST 2 VIEWS PA AND LATERAL: { rename: XR CHEST }
+      XR CHEST 2 VIEWS PA AND LATERAL (S): { rename: XR CHEST }
+      XR CHEST AND ABDOMEN: {}
+      "XR CHEST DECUBITUS VIEWS, BILATERAL": { rename: XR CHEST }
+      XR CHEST/ABDOMEN 1 VIEW (S): { rename: XR CHEST AND ABDOMEN }
+      XR CHEST/ABDOMEN 1 VIEW FOR FEEDING TUBE PLACEMENT: { rename: XR CHEST AND ABDOMEN }
+      "XR CLAVICLE, LEFT": { rename: XR CLAVICLE }
+      "XR CLAVICLE, RIGHT": { rename: XR CLAVICLE }
+      "XR ELBOW 2 VIEWS, LEFT": { rename: XR ELBOW }
+      "XR ELBOW 2 VIEWS, LEFT (S)": { rename: XR ELBOW }
+      "XR ELBOW 2 VIEWS, RIGHT": { rename: XR ELBOW }
+      "XR ELBOW 2 VIEWS, RIGHT (S)": { rename: XR ELBOW }
+      "XR ELBOW 3 VIEWS, LEFT": { rename: XR ELBOW }
+      "XR ELBOW 3 VIEWS, LEFT (S)": { rename: XR ELBOW }
+      "XR ELBOW 3 VIEWS, RIGHT": { rename: XR ELBOW }
+      "XR ELBOW 3 VIEWS, RIGHT (S)": { rename: XR ELBOW }
+      "XR EXTREMITY 1 VIEW, LEFT": { rename: XR EXTREMITY }
+      "XR EXTREMITY 1 VIEW, RIGHT": { rename: XR EXTREMITY }
+      "XR FEMUR MINIMUM OF 2 VIEWS, LEFT": { rename: XR LEG }
+      "XR FEMUR MINIMUM OF 2 VIEWS, LEFT (S)": { rename: XR LEG }
+      "XR FEMUR MINIMUM OF 2 VIEWS, RIGHT": { rename: XR LEG }
+      "XR FEMUR MINIMUM OF 2 VIEWS, RIGHT (S)": { rename: XR LEG }
+      "XR FINGER, LEFT": { rename: XR HAND }
+      "XR FINGER, RIGHT": { rename: XR HAND }
+      "XR FOOT 2 VIEWS, LEFT": { rename: XR FOOT }
+      "XR FOOT 2 VIEWS, RIGHT": { rename: XR FOOT }
+      "XR FOOT 3+ VIEWS, LEFT": { rename: XR FOOT }
+      "XR FOOT 3+ VIEWS, RIGHT": { rename: XR FOOT }
+      "XR FOOT/ANKLE 5 VIEWS, RIGHT": { rename: XR FOOT }
+      "XR FOREARM 2 VIEWS, LEFT": { rename: XR ARM }
+      "XR FOREARM 2 VIEWS, LEFT (S)": { rename: XR ARM }
+      "XR FOREARM 2 VIEWS, RIGHT": { rename: XR ARM }
+      "XR FOREARM 2 VIEWS, RIGHT (S)": { rename: XR ARM }
+      "XR HAND 2 VIEWS, LEFT": { rename: XR HAND }
+      "XR HAND 2 VIEWS, RIGHT": { rename: XR HAND }
+      "XR HAND 3+ VIEWS, LEFT": { rename: XR HAND }
+      "XR HAND 3+ VIEWS, RIGHT": { rename: XR HAND }
+      "XR HIP WITH PELVIS, WHEN PERFORMED, 2 - 3 VIEWS, RIGHT": { rename: XR PELVIS }
+      "XR HIP WITH PELVIS, WHEN PERFORMED, 3 - 4 VIEWS, BILATERAL": { rename: XR PELVIS }
+      "XR HUMERUS 2 VIEWS, LEFT": { rename: XR SHOULDER }
+      "XR HUMERUS 2 VIEWS, LEFT (S)": { rename: XR SHOULDER }
+      "XR HUMERUS 2 VIEWS, RIGHT": { rename: XR SHOULDER }
+      "XR HUMERUS 2 VIEWS, RIGHT (S)": { rename: XR SHOULDER }
+      "XR KNEE 1 OR 2 VIEWS, LEFT": { rename: XR KNEE }
+      "XR KNEE 1 OR 2 VIEWS, RIGHT": { rename: XR KNEE }
+      "XR KNEE 3 VIEWS, LEFT": { rename: XR KNEE }
+      "XR KNEE 3 VIEWS, RIGHT": { rename: XR KNEE }
+      "XR KNEE COMPLETE 4+ VIEWS, LEFT": { rename: XR KNEE }
+      "XR KNEE COMPLETE 4+ VIEWS, RIGHT": { rename: XR KNEE }
+      XR KUB + UP/DECUB + PA CHEST: { rename: XR CHEST AND ABDOMEN }
+      "XR KUB, FLAT PLATE, ABDOMEN 1 VIEW": { rename: XR ABDOMEN }
+      "XR KUB, FLAT PLATE, ABDOMEN 1 VIEW (S)": { rename: XR ABDOMEN }
+      XR LUMBAR SPINE AP AND LATERAL 2 OR 3 VIEWS: { rename: XR SPINE }
+      XR NASAL BONE: { rename: XR FACIAL }
+      "XR NECK, SOFT TISSUE": { rename: XR CSPINE }
+      "XR NECK, SOFT TISSUE (S)": { rename: XR CSPINE }
+      XR PELVIS 1 OR 2 VIEWS: { rename: XR PELVIS }
+      XR PELVIS 1 OR 2 VIEWS (S): { rename: XR PELVIS }
+      "XR PELVIS AND HIP 2 - 3 VIEWS, LEFT": { rename: XR PELVIS }
+      "XR PELVIS AND HIP 2 - 3 VIEWS, RIGHT": { rename: XR PELVIS }
+      "XR PELVIS AND HIPS, INFANT OR CHILD, 2 OR 3 VIEWS": { rename: XR PELVIS }
+      XR SACRUM AND COCCYX: { rename: XR SPINE }
+      XR SCOLIOSIS STUDY 2 OR 3 VIEWS: { rename: XR SPINE }
+      "XR SHOULDER 1 VIEW, LEFT": { rename: XR SHOULDER }
+      "XR SHOULDER 1 VIEW, RIGHT": { rename: XR SHOULDER }
+      "XR SHOULDER 2+ VIEWS, LEFT": { rename: XR SHOULDER }
+      "XR SHOULDER 2+ VIEWS, RIGHT": { rename: XR SHOULDER }
+      "XR SHOULDER 3+ VIEWS, LEFT": { rename: XR SHOULDER }
+      "XR SHOULDER 3+ VIEWS, RIGHT": { rename: XR SHOULDER }
+      XR SHUNT EVALUATION: {}
+      XR SKULL LESS THAN 4 VIEWS: { rename: XR HEAD }
+      XR THORACIC SPINE AP AND LATERAL: { rename: XR SPINE }
+      "XR TIBIA-FIBULA 2 VIEWS, LEFT": { rename: XR LEG }
+      "XR TIBIA-FIBULA 2 VIEWS, LEFT (S)": { rename: XR LEG }
+      "XR TIBIA-FIBULA 2 VIEWS, RIGHT": { rename: XR LEG }
+      "XR TIBIA-FIBULA 2 VIEWS, RIGHT (S)": { rename: XR LEG }
+      "XR TOES 2+ VIEWS, LEFT": { rename: XR FOOT }
+      "XR TOES 2+ VIEWS, RIGHT": { rename: XR FOOT }
+      "XR WRIST 2 VIEWS, LEFT": { rename: XR WRIST }
+      "XR WRIST 2 VIEWS, LEFT WITH TOMOGRAM": { rename: XR WRIST }
+      "XR WRIST 2 VIEWS, RIGHT": { rename: XR WRIST }
+      "XR WRIST 3 VIEWS, LEFT": { rename: XR WRIST }
+      "XR WRIST 3 VIEWS, LEFT (S)": { rename: XR WRIST }
+      "XR WRIST 3 VIEWS, RIGHT": { rename: XR WRIST }
+      "XR WRIST 3 VIEWS, RIGHT (S)": { rename: XR WRIST }
+
+  visits:
+    file: visits.csv
+    mode: multi_column
+    timestamp_column: ArrivalInstant
+    pre_filter: { EdDisposition: [Discharge, Admit] }
+    variables:
+      ArrivalMethod: { prefix: "Arrival_Method" }
+      PrimaryChiefComplaintName: { prefix: CC }
+      Age: { prefix: Age, type: numeric, rounding: int }
+      AcuityLevel: { prefix: Acuity }
+      Sex: { prefix: Sex }
+      EdDisposition:
+        rules:
+          - { value: Discharge, token_name: Discharge, timestamp_column: DepartureInstant }
+          - { value: Admit, token_name: Admit, timestamp_column: DepartureInstant }
+
+  icu:
+    file: icu.csv
+    mode: multi_column
+    variables:
+      FirstIcuStayStartInstant:
+        token_name: "ICU Start"
+        timestamp_override: { magic: admit }

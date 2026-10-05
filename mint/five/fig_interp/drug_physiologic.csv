@@ -1,0 +1,21 @@
+supplementary_name,vocab_token,count_sum,HR,BP,RR,SpO2,GCS,notes
+Atropine,Med_atropine,7077,+++,,,,,anticholinergic; increases HR
+Adenosine,Med_adenosine,213,---,,,,,transient AV block / HR arrest
+Propranolol,Med_propranolol,6408,--,,,,,beta-blocker
+Epinephrine,Med_epinephrine,8969,+++,+++,,,,pressor/inotrope
+Norepinephrine,Med_norepinephrine bitartrate,2739,+,+,,,,pressor (predominantly alpha)
+Albuterol,"Med_albuterol sulfate; Med_albuterol sulfate concentrate; Med_albuterol sulfate hfa",166247,++,,,+,,beta-agonist bronchodilator
+Ipratropium,"Med_ipratropium; Med_ipratropium bromide",52680,+,,,+,,anticholinergic bronchodilator
+Hydralazine,Med_hydralazine,1988,,--,,,,vasodilator
+Dopamine,Med_dopamine,1479,,++,,,,inotrope/pressor
+Milrinone,Med_milrinone,3781,,-,,,,"inodilator; lowers SVR/BP"
+Dobutamine,Med_dobutamine,34,,+,,,,"inotrope; modest BP rise"
+Ketamine,Med_ketamine,18262,,++,,,---,dissociative anesthetic
+Propofol,Med_propofol,4460,,,--,,---,anesthetic; respiratory depression and sedation
+Fentanyl,Med_fentanyl (pf),36281,,,---,,,opioid; respiratory depression
+Morphine,"Med_morphine; Med_morphine (pf)",43765,,,--,,,opioid; respiratory depression
+Midazolam,"Med_midazolam; Med_midazolam (pf)",36772,,,--,,--,benzodiazepine sedative
+Lorazepam,Med_lorazepam,36118,,,--,,--,benzodiazepine sedative
+Diazepam,Med_diazepam,11284,,,--,,--,benzodiazepine sedative
+Naloxone,Med_naloxone,4534,,,+++,,++,opioid reversal; restores respiration
+Dexmedetomidine,Med_dexmedetomidine,19880,,,,,--,alpha-2 agonist; sedation

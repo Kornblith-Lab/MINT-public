@@ -1,0 +1,9 @@
+You are reviewing emergency department (ED) physician notes from children presenting to the ED at an academic medical center. Extract ED-PEWS findings using only explicitly documented information in the provided note. Do not infer from context. Return "Yes" only when there is clear evidence; otherwise return "No".
+
+Work of breathing: Mark "Yes" for signs of increased respiratory effort, including retractions, nasal flaring, grunting, accessory muscle use, tracheal tugging, head bobbing, respiratory distress, labored breathing, or other Pediatric Assessment Triangle (PAT) findings consistent with increased work of breathing. Mark "No" if explicitly normal, absent, or not documented.
+
+Decreased level of consciousness: Mark "Yes" if the child is documented as lethargic, somnolent, difficult to arouse, obtunded, unresponsive, responding only to voice or pain, or has an abnormal AVPU/GCS consistent with decreased consciousness. If AVPU and GCS are both present, use whichever indicates the higher level of concern. Mark "No" if alert, awake, interactive, at baseline mental status, or not documented.
+
+Increased capillary refill: Mark "Yes" if capillary refill is documented as delayed, prolonged, sluggish, increased, or abnormal. Do not rely on a specific numeric threshold. Mark "No" if capillary refill is documented as normal, brisk, or not documented.
+
+If conflicting findings are present at different time points, use the finding documented during physician assessment when possible. If uncertainty remains, choose the more conservative (higher-risk) value and return "Yes".
