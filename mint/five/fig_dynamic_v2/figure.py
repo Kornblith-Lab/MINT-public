@@ -68,22 +68,22 @@ COHORT_LABELS_CACHE = SAVE_DIR / "cohort_labels.csv"
 COHORT_METADATA_CACHE = SAVE_DIR / "cohort_metadata.csv"
 
 PANEL_A_NOTES = {
-    "D239C1FB5DEB6A": ("Hx: Reactive airway disease (ex 34-weeker)", 0),
-    "DDA282660A3B9A": ("Hx: Medically complex (ex 29-weeker)", 5),
-    "D3504C361B1841": ("Respiratory decompensation at t=60 min", 5),
+    "REDACTED": ("Hx: Reactive airway disease (ex 34-weeker)", 0),
+    "REDACTED": ("Hx: Medically complex (ex 29-weeker)", 5),
+    "REDACTED": ("Respiratory decompensation at t=60 min", 5),
 }
 
 PANEL_A_NOTES = { k:(textwrap.fill(v[0], width=40), v[1]) for k,v in PANEL_A_NOTES.items() }
 
 PANEL_B_RANKS = [(1, 5), (16, 20)]
 PANEL_B_DESCRIPTIONS = {
-    "D34A13E0398468": "Infant girl, s/p fall with subdural hematoma; transfer by air",
-    "D517C0B71EC7E6": "4 y.o. girl, referral for appendicitis; surgical admit",
-    "DEE1C0E437FAFC": "Infant male, seizures",
-    "D10773AEA35DDB": "Infant boy, hypoxic episode; history of trach-vent dependence",
-    "DFBBB304A29490": "5 y.o. girl, fevers and chills; history of acute myeloid leukemia",
-    "DB88C0A0F683C0": "1 y.o. boy, eyebrow laceration",
-    "D6D9E65D3059DC": "3 y.o. girl, vomiting and fever (Tmax 104F)"
+    "REDACTED": "Infant girl, s/p fall with subdural hematoma; transfer by air",
+    "REDACTED": "4 y.o. girl, referral for appendicitis; surgical admit",
+    "REDACTED": "Infant male, seizures",
+    "REDACTED": "Infant boy, hypoxic episode; history of trach-vent dependence",
+    "REDACTED": "5 y.o. girl, fevers and chills; history of acute myeloid leukemia",
+    "REDACTED": "1 y.o. boy, eyebrow laceration",
+    "REDACTED": "3 y.o. girl, vomiting and fever (Tmax 104F)"
 }
 
 PANEL_B_DESCRIPTIONS = { k:textwrap.fill(v, width=40) for k,v in PANEL_B_DESCRIPTIONS.items() }
@@ -91,7 +91,7 @@ PANEL_B_DESCRIPTIONS = { k:textwrap.fill(v, width=40) for k,v in PANEL_B_DESCRIP
 
 SHAP_CASES = [
     {
-        "encounter_key": "DDE88C1CCB015D",
+        "encounter_key": "REDACTED",
         "t_max": 90,
         "step": 1,
         "clean": "mode1_bw",
@@ -109,7 +109,7 @@ SHAP_CASES = [
         ],
     },
     {
-        "encounter_key": "D93401F5610C29",
+        "encounter_key": "REDACTED",
         "title": "6-year-old boy with an extremity laceration",
         "t_max": 180,
         "step": 1,
@@ -125,7 +125,7 @@ SHAP_CASES = [
         ],
     },
     {
-        "encounter_key": "DDC7AFE4078836",
+        "encounter_key": "REDACTED",
         "title": "Infant girl with difficulty breathing",
         "t_max": 100,
         "step": 1,
@@ -152,7 +152,7 @@ SHAP_CASES = [
         ],
     },
     {
-        "encounter_key": "DDA63F03DDB90C",
+        "encounter_key": "REDACTED",
         "title": "15-year-old girl with supraventricular tachycardia (SVT)",
         "t_max": 110,
         "step": 1,
@@ -171,7 +171,7 @@ SHAP_CASES = [
             {"time": 95, "label": "Abnormal labs"},
         ],
     }
-    # D503AC2A635528 -- zero year-old sick trauma
+    # REDACTED -- zero year-old sick trauma
 ]
 
 CLEAN_MODES = {
