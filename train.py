@@ -68,6 +68,8 @@ data_fraction = 1.0
 no_event_token_rate = 5
 select = 'left'
 vocab_path = 'output/vocab.csv'
+train_path = 'output/train.npy'
+val_path = 'output/val.npy'
 
 
 # -----------------------------------------------------------------------------
@@ -94,8 +96,8 @@ torch.set_default_dtype(ptdtype)
 # train_data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint32, mode='r').reshape(-1, 3)
 # val_data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint32, mode='r').reshape(-1, 3)
 
-train_data = np.load("output/train.npy").astype(np.uint32)
-val_data = np.load("output/val.npy").astype(np.uint32)
+train_data = np.load(train_path).astype(np.uint32)
+val_data = np.load(val_path).astype(np.uint32)
 
 train_p2i = get_p2i(train_data)
 val_p2i = get_p2i(val_data)
