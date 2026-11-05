@@ -21,10 +21,10 @@ def _run_cmd(cmd_parts, n_cpus=2, mem="5G", use_slurm=USE_SLURM):
 
 DATA_DIR = join("#", "MINT raw data", "additional")
 VOCAB = join(DATA_DIR, "vocab.csv")
-CONFIG = join("#", flag, "config_demo.py")
+CONFIG = join("#", flag, "config_demo.json")
 SUBSAMPLE_SCRIPT = join("#", "scripts", "subsample_tokens.py")
 TRAIN_SCRIPT = join("#", "train.py")
-TRAIN_CODE = [join("#", f) for f in ["configurator.py", "model.py", "utils.py"]]
+TRAIN_CODE = [join("#", f) for f in ["model.py", "utils.py"]]
 N_ENCOUNTERS = {"train": 5000, "val": 500}
 N_SEEDS = 1
 
@@ -53,12 +53,13 @@ def subsample(env, outdir, c):
 def train(env, outdir, c):
     targets = [join(outdir, "ckpt.pt"), join(outdir, "train.log")]
     cmd = [
-        "python", "${SOURCES[0]}", "${SOURCES[1]}",
-        "--train_path=${SOURCES[2]}",
-        "--val_path=${SOURCES[3]}",
-        "--vocab_path=${SOURCES[4]}",
-        "--seed=%d" % (42 + c["seed"]),
-        "--out_dir=${TARGETS[0].dir}",
+        "python", "${SOURCES[0]}",
+        "--config",    "${SOURCES[1]}",
+        "--train-npy", "${SOURCES[2]}",
+        "--val-npy",   "${SOURCES[3]}",
+        "--vocab",     "${SOURCES[4]}",
+        "--seed",      c["seed"],
+        "--out-dir",   "${TARGETS[0].dir}",
         "> ${TARGETS[1]}",
     ]
     sources = [TRAIN_SCRIPT, CONFIG, c["subsample"][0], c["subsample"][1], VOCAB] + TRAIN_CODE
