@@ -60,7 +60,7 @@ def train(env, outdir, c):
         "--vocab",     "${SOURCES[4]}",
         "--seed",      c["seed"],
         "--out-dir",   "${TARGETS[0].dir}",
-        "> ${TARGETS[1]}",
+        "--log",       "${TARGETS[1]}",
     ]
     sources = [TRAIN_SCRIPT, CONFIG, c["subsample"][0], c["subsample"][1], VOCAB] + TRAIN_CODE
     return env.Command(targets, sources, _run_cmd(cmd))

@@ -2,6 +2,7 @@
 output directory and seed are command-line arguments."""
 import argparse
 import json
+import logging
 import math
 import os
 import time
@@ -26,6 +27,7 @@ def parse_args():
     parser.add_argument('--vocab', required=True)
     parser.add_argument('--out-dir', required=True)
     parser.add_argument('--seed', type=int, required=True)
+    parser.add_argument('--log', required=True, help='path to the training log file')
     parser.add_argument('--resume', action='store_true', help='resume from <out-dir>/ckpt.pt')
     return parser.parse_args()
 
@@ -73,6 +75,8 @@ def main():
     with open(args.config) as f:
         config = json.load(f)
     cfg = SimpleNamespace(**config)
+    logging.basicConfig(filename=args.log, filemode='w', level=logging.INFO,
+                        format='%(asctime)s %(levelname)s %(message)s')
 
     os.makedirs(args.out_dir, exist_ok=True)
     ckpt_path = os.path.join(args.out_dir, 'ckpt.pt')
@@ -108,7 +112,7 @@ def main():
         torch.save({'model': model.state_dict(), 'optimizer': optimizer.state_dict(),
                     'model_args': cfg.model, 'iter_num': iter_num,
                     'best_val_loss': val_loss, 'config': config}, path)
-        print(f"saving checkpoint to {path}")
+        logging.info(f"saving checkpoint to {path}")
 
     if cfg.wandb_log:
         import wandb
@@ -125,7 +129,7 @@ def main():
         if iter_num % cfg.eval_interval == 0 and iter_num > 0:
             losses = estimate_loss(model, splits, cfg, ctx, demographic_token_ids)
             val_loss = losses['val'].sum().item()
-            print(f"step {iter_num}: train loss {losses['train'].sum().item():.4f}, val loss {val_loss:.4f}")
+            logging.info(f"step {iter_num}: train loss {losses['train'].sum().item():.4f}, val loss {val_loss:.4f}")
             metrics.update({"train/agg_loss": losses['train'].sum().item(), "val/loss": val_loss,
                             "val/loss_ce": losses['val'][0].item(), "val/loss_dt": losses['val'][1].item()})
             if cfg.always_save_checkpoint or val_loss < best_val_loss:
@@ -153,7 +157,7 @@ def main():
 
         t1 = time.time()
         if iter_num % cfg.log_interval == 0:
-            print(f"iter {iter_num}: loss {loss.item():.4f}, time {(t1 - t0) * 1000:.2f}ms")
+            logging.info(f"iter {iter_num}: loss {loss.item():.4f}, time {(t1 - t0) * 1000:.2f}ms")
             metrics.update({"train/loss": loss.item(), "lr": lr})
         t0 = t1
         if cfg.wandb_log and len(metrics) > 1:
